@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6959428.svg)](https://doi.org/10.5281/zenodo.6959428)
+
 # Wikipedia Knowledge Graph
 ## About
 This repository includes all scripts for processing data from English Wikipedia and creating the Wikipedia Knowledge Graph, available at Zenodo ([10.5281/zenodo.6346899](https://doi.org/10.5281/zenodo.6346899)).
