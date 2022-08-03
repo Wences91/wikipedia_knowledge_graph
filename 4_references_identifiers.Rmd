@@ -1,0 +1,174 @@
+---
+title: "Wikipedia references"
+author: "Wenceslao Arroyo-Machado"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyr)
+library(dplyr)
+```
+
+## Preview
+
+There are 29,276,667 Wikipedia mentions, of which 27,212,084 mentions have some identifier.
+
+```{r import}
+df <- read.csv(file='references/ref_data.csv', stringsAsFactors=FALSE)
+df2 <- read.csv(file='references/url_ref_norm.tsv', stringsAsFactors = FALSE, sep='\t')
+length(which(df$URL != '' | df$ID_list != ''))
+```
+
+Removing web archives.
+```{r}
+df$URL <- gsub('http[s]{0,1}://(web\\.archive|waybackmachine)\\.org/.*http', 'http', df$URL, perl=TRUE)
+df$URL <- gsub('http[s]{0,1}://(web\\.archive|waybackmachine)\\.org/.*www', 'www', df$URL, perl=TRUE)
+df$URL <- gsub('http[s]{0,1}://(web\\.archive|waybackmachine)\\.org/web/([0-9a-z]*|[0-9a-z]*\\*|\\*)/|http[s]{0,1}://(web\\.archive|waybackmachine)\\.org/\\*/', '', df$URL, perl=TRUE)
+df$URL <- gsub('http[s]{0,1}://archive\\.(today|is|fo|li|vn|md)/.*http', 'http', df$URL, perl=TRUE)
+df$URL <- gsub('http[s]{0,1}://archive\\.(today|is|fo|li|vn|md)/.*www', 'www', df$URL, perl=TRUE)
+df$URL <- gsub('http[s]{0,1}://((www\\.)?)webcitation\\.org/.*http', 'http', df$URL, perl=TRUE)
+df$URL <- gsub('http[s]{0,1}://((www\\.)?)webcitation\\.org/.*www', 'www', df$URL, perl=TRUE)
+```
+
+```{r}
+all(df2$URL %in% df$URL)
+sum(df$URL %in% df2$URL)
+```
+
+Fix URLs.
+```{r}
+url_n <- setNames(df2$URL_n, df2$URL)
+url_n['https://archive.org/stream/appletonsillustr00newy#page/100/mode/2up\\n']
+df$URL <- url_n[df$URL]
+sum(!is.na(df$URL))
+rm(df2)
+```
+
+
+## Identifiers
+
+The ID_list field include all identifiers included in the reference.
+
+```{r identifiers_preview}
+head(df$ID_list[which(df$ID_list != '')], n = 10)
+```
+
+There are 20 kind of identifiers. ISBN and DOI are the most frequent. But the ISSN is not useful for the heterogeneous coupling at this paper-level. 
+
+MR is MathSciNet review, ASIN is Amazon Standard Identification Number, OL is Open Library, ZBL is zbMATH, OSTI is Office of Scientific and Technical Information, JFM is Zentralblatt MATH (previous to ZBL), RFC is Request for Comments.
+
+```{r identifiers}
+df$ID_list <- gsub(pattern='^\\{|\\}$', replacement='', x=df$ID_list)
+
+df_id <- tidyr::separate_rows(data=df[,c('id', 'ID_list')], ID_list, sep=', ')
+df_id <- df_id[which(df_id$ID_list != ''),]
+
+ids <- as.data.frame(table(gsub(pattern='=.*', replacement='', x=df_id$ID_list)), stringsAsFactors=FALSE)
+ids <- ids[order(ids$Freq, decreasing = TRUE),]
+head(ids, n=20)
+```
+
+## Publications and resources
+
+```{r publications_dataframe}
+df_pub <- unique(df[which(df$ID_list != ''), c('id', 'ID_list', 'URL')])
+df_pub$pub_id <- 1:dim(df_pub)[1]
+
+df_pub_ids <- df_pub[,c('id', 'pub_id', 'ID_list')]
+names(df_pub_ids)[3] <- 'r_id'
+df_pub_ids <- df_pub_ids[which(df_pub_ids$r_id != ''),]
+df_pub_ids <- tidyr::separate_rows(df_pub_ids, r_id, sep = ', ')
+df_pub_ids$type <- gsub(pattern = '\\=.*$', replacement = '', x=df_pub_ids$r_id)
+df_pub_ids$r_id <- gsub(pattern = '^.*\\=', replacement = '', x=df_pub_ids$r_id)
+
+# general trasnformations
+# to lower
+df_pub_ids$r_id <- tolower(df_pub_ids$r_id)
+# remove spaces
+df_pub_ids$r_id <- gsub(pattern = '\\s', replacement = '', x=df_pub_ids$r_id)
+# remove escape characters
+df_pub_ids$r_id <- gsub(pattern='(\\\\n)+$|(\\n)+$|(\\\\t)+$|(\\t)+$', replacement='', x=df_pub_ids$r_id)
+df_pub_ids$r_id <- gsub(pattern='^(\\\\n)+|^(\\n)+|^(\\\\t)+|^(\\t)+', replacement='', x=df_pub_ids$r_id)
+
+
+# ISBN transformations
+df_pub_ids$r_id[which(df_pub_ids$type == 'ISBN')] <- gsub(pattern = '-', replacement = '', x=df_pub_ids$r_id[which(df_pub_ids$type == 'ISBN')])
+
+table(nchar(df_pub_ids$r_id[which(df_pub_ids$type == 'ISBN')]))
+df_pub_ids$r_id[which((!(nchar(df_pub_ids$r_id) %in% c(10, 13))) & df_pub_ids$type == 'ISBN')] <- ''
+
+table(nchar(df_pub_ids$r_id[which(df_pub_ids$type == 'DOI')]))
+table(substr(df_pub_ids$r_id[which(df_pub_ids$type == 'DOI')], 1, 4))
+df_pub_ids$r_id[which((!(grepl(pattern = '^10', x = df_pub_ids$r_id))) & df_pub_ids$type == 'DOI')] <- ''
+df_pub_ids <- df_pub_ids[which(df_pub_ids$type != 'ISSN'),]
+
+df_pub_ids <- df_pub_ids[which(df_pub_ids$r_id != ''),]
+
+
+
+df_pub_url <- df_pub[,c(1,4,3)]
+names(df_pub_url)[3] <- 'r_id'
+df_pub_url <- df_pub_url[which(!is.na(df_pub_url$r_id)),]
+df_pub_url$type <- 'URL'
+
+df_pub <- rbind.data.frame(df_pub_url, df_pub_ids, stringsAsFactors = FALSE)
+```
+
+
+```{r publications_dataframe}
+df_pub <- unique(df[which(df$URL != '' | df$ID_list != ''), c('ID_list', 'URL')])
+df_pub$pub_id <- 1:dim(df_pub)[1]
+
+df_pub_ids <- df_pub[,c(3,1)]
+names(df_pub_ids)[2] <- 'r_id'
+df_pub_ids <- df_pub_ids[which(df_pub_ids$r_id != ''),]
+df_pub_ids <- tidyr::separate_rows(df_pub_ids, r_id, sep = ', ')
+df_pub_ids$type <- gsub(pattern = '\\=.*$', replacement = '', x=df_pub_ids$r_id)
+df_pub_ids$r_id <- gsub(pattern = '^.*\\=', replacement = '', x=df_pub_ids$r_id)
+
+# general trasnformations
+df_pub_ids$r_id <- tolower(df_pub_ids$r_id)
+
+
+df_pub_ids$r_id <- gsub(pattern = '\\s', replacement = '', x=df_pub_ids$r_id)
+df_pub_ids$r_id <- gsub(pattern='(\\\\n)+$|(\\n)+$|(\\\\t)+$|(\\t)+$', replacement='', x=df_pub_ids$r_id)
+df_pub_ids$r_id <- gsub(pattern='^(\\\\n)+|^(\\n)+|^(\\\\t)+|^(\\t)+', replacement='', x=df_pub_ids$r_id)
+
+df_pub <- df_pub_ids
+# review duplicated
+df_pub <- unique(df_pub[which(df_pub$r_id != ''), c('pub_id', 'r_id', 'type')])
+
+
+
+# ISBN
+df_pub_ids$r_id[which(df_pub_ids$type == 'ISBN')] <- gsub(pattern = '-', replacement = '', x=df_pub_ids$r_id[which(df_pub_ids$type == 'ISBN')])
+
+df_pub_ids$r_id[which((!(nchar(df_pub_ids$r_id) %in% c(10, 13))) & df_pub_ids$type == 'ISBN')] <- ''
+
+table(nchar(df_pub_ids$r_id[which(df_pub_ids$type == 'DOI')]))
+df_pub_ids$r_id[which((!(grepl(pattern = '^10', x = df_pub_ids$r_id))) & df_pub_ids$type == 'DOI')]
+
+
+df_pub_url <- df_pub[,c(3,2)]
+names(df_pub_url)[2] <- 'r_id'
+df_pub_url <- df_pub_url[which(df_pub_url$r_id != ''),]
+df_pub_url$type <- 'URL'
+
+df_pub <- rbind.data.frame(df_pub_url, df_pub_ids, stringsAsFactors = FALSE)
+df_pub <- df_pub[which(df_pub$type != 'ISSN'),]
+# remove worngs ids
+df_pub <- df_pub[which(df_pub$type %in% c(ids$Var1[1:20],'URL')),]
+
+# rename page_id
+dict <- setNames(as.character(1:length(unique(df_pub$pub_id))), as.character(unique(df_pub$pub_id)))
+df_pub$pub_id <- dict[as.character(df_pub$pub_id)]
+df_pub$pub_id <- as.integer(df_pub$pub_id)
+
+write.table(x=df_pub, file='references/wp_ref.tsv', quote = FALSE, row.names = FALSE, sep = '\t', fileEncoding = 'UTF-8')
+```
