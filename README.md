@@ -1,6 +1,6 @@
 # Wikipedia Knowledge Graph
 ## About
-This repository includes all scripts for processing Wikipedia data and creating the Wikipedia Knowledge Graph, available at Zenodo ([10.5281/zenodo.6346899](https://doi.org/10.5281/zenodo.6346899)).
+This repository includes all scripts for processing data from English Wikipedia and creating the Wikipedia Knowledge Graph, available at Zenodo ([10.5281/zenodo.6346899](https://doi.org/10.5281/zenodo.6346899)).
 
 ## Authors
 * [Wenceslao Arroyo-Machado]() (https://orcid.org/0000-0001-9437-8757) (Department of Information and Communication Sciences, [University of Granada](https://ror.org/04njjy449), Granada, Spain)
